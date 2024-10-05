@@ -41,13 +41,17 @@ class Animal {
     }
 }
 
-// const items = [];
-// for (let i = 0; i < 3; i++) {
-//     items.push(new Item({ id: `${i}`, text: `item ${i}`, date: new Date(Date.now() + i), version: 1 }));
-// }
-// let lastUpdated = items[items.length - 1].date;
-// let lastId = items[items.length - 1].id;
-// const pageSize = 10;
+const animals = [];
+for (let i = 0; i < 3; i++) {
+    animals.push(new Animal({
+        id: i,
+        name: `Animal ${i}`,
+        species: `Species ${i % 2}`,
+        birthdate: formatDate(Date.now()),
+        isWild: i % 2 === 0,
+        weight: i * 10
+    }))
+}
 
 const broadcast = data =>
     wss.clients.forEach(client => {
@@ -63,17 +67,7 @@ function formatDate(date) {
 }
 
 function getAllAnimals() {
-    const animals = [];
-    for (let i = 0; i < 3; i++) {
-        animals.push(new Animal({
-            id: i,
-            name: `Animal ${i}`,
-            species: `Species ${i % 2}`,
-            birthdate: formatDate(Date.now()),
-            isWild: i % 2 === 0,
-            weight: i * 10
-        }))
-    }
+
     return animals;
 }
 
@@ -175,14 +169,19 @@ router.get('/animals/:id', async (ctx) => {
 
 
 /** FOR WEBSOCKET **/
-// setInterval(() => {
-//     lastUpdated = new Date();
-//     lastId = `${parseInt(lastId) + 1}`;
-//     const item = new Item({ id: lastId, text: `item ${lastId}`, date: lastUpdated, version: 1 });
-//     items.push(item);
-//     console.log(`New item: ${item.text}`);
-//     broadcast({ event: 'created', payload: { item } });
-// }, 5000);
+setInterval(() => {
+    const animal = new Animal({
+        id: 5,
+        name: "NEW",
+        species: "SPECIES",
+        birthdate: formatDate(Date.now()),
+        isWild: true,
+        weight: 20
+    })
+    console.log("New Animal: ", animal)
+    animals.push(animal);
+    broadcast({event: 'created', payload: {animal}});
+}, 5000);
 
 app.use(router.routes());
 app.use(router.allowedMethods());
