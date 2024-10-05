@@ -1,0 +1,11 @@
+{
+  "name": "zoo-server",
+  "version": "1.0.0",
+  "dependencies": {
+    "koa": "^2.15.3",
+    "koa-bodyparser": "^4.4.1",
+    "koa-cors": "^0.0.16",
+    "koa-router": "^13.0.1",
+    "ws": "^8.18.0"
+  }
+}
