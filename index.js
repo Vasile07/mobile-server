@@ -7,6 +7,16 @@ const Router = require('koa-router');
 const cors = require('koa-cors');
 const bodyparser = require('koa-bodyparser');
 
+// For database
+const Knex = require('knex');
+const config = require('./knexfile');
+const knex = Knex(config.development);
+
+// For jwt
+const jwt = require('jsonwebtoken');
+const secretKey = '5a36e4f53d0d1f86725e7655b262054fb0fd320478c76883c60a35f2b679db5c61bacf0fe60ef539bd59a1cd7bcfacce051d9bf6926503fead7ede539ff1f17d439ee171026581cfa39633ef839914b0dbb837174b2b18a361cdf7fd5a289e088eaf5e28e5f68a314949fc43d1e4d45d75a8320a642079d711207fa1feb147b926856b2a99fe94f32aecc1666f74d5b6b4e6281d84743d3c81143e92c2014ee9f527adbde3c8c093389f2292fc834d4fd3cc12b163a616f5aad63965833e544917514e2127b25ad2ea7d29665f8c0af134f8b8652ec46a74f3380a65b99d311354192c7166783bf0677874c13e58932b7d9274416385fc6c2b504171b3422360';
+
+
 app.use(bodyparser());
 app.use(cors());
 app.use(async (ctx, next) => {
@@ -41,18 +51,6 @@ class Animal {
     }
 }
 
-const animals = [];
-for (let i = 0; i < 3; i++) {
-    animals.push(new Animal({
-        id: i,
-        name: `Animal ${i}`,
-        species: `Species ${i % 2}`,
-        birthdate: formatDate(Date.now()),
-        isWild: i % 2 === 0,
-        weight: i * 10
-    }))
-}
-
 const broadcast = data =>
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
@@ -66,18 +64,20 @@ function formatDate(date) {
     return new Intl.DateTimeFormat('en-GB').format(new Date(date));
 }
 
-function getAllAnimals() {
-
-    return animals;
+async function getAllAnimals() {
+    return knex('animals').select('*');
 }
 
-router.get('/animals', ctx => {
-    ctx.response.body = getAllAnimals();
+router.get('/animals', async (ctx) => {
+    const animals = await getAllAnimals();
+    ctx.response.body = animals;
     ctx.response.status = 200;
 });
 
-function getAnimalById(animalId) {
-    return getAllAnimals().find(animal => animal.id == animalId);
+async function getAnimalById(animalId) {
+    return knex('animals')
+        .select('*')
+        .where("id", animalId);
 }
 
 router.get('/animals/:id', async (ctx) => {
@@ -92,6 +92,56 @@ router.get('/animals/:id', async (ctx) => {
         ctx.response.status = 404; // NOT FOUND (if you know the resource was deleted, then return 410 GONE)
     }
 });
+
+
+async function findUserByEmailAndPassword(email, password) {
+    const user = await knex('users').where("email", email).first();
+    if (user && user.password === password) {
+        return user;
+    }
+    return null;
+}
+
+router.post("/users/login", async (ctx) => {
+    const {email, password} = ctx.request.body;
+    console.log(email, password);
+
+    if (!email || !password) {
+        ctx.response.body = {message: "Email and password are mandatory"}
+        ctx.response.body = 400; // BAD REQUEST
+        return;
+    }
+
+    const user = await findUserByEmailAndPassword(email, password);
+
+    if (user) {
+        const token = jwt.sign({userId: user.id}, secretKey, {expiresIn: "1h"});
+        ctx.response.body = {token: token};
+        ctx.response.status = 200;
+    } else {
+        ctx.response.body = {message: "Bad credentials!"};
+        ctx.response.status = 401; // UNAUTHORIZED
+    }
+});
+
+/** FOR WEBSOCKET **/
+setInterval(() => {
+    const animal = new Animal({
+        id: 5,
+        name: "NEW",
+        species: "SPECIES",
+        birthdate: formatDate(Date.now()),
+        isWild: true,
+        weight: 20
+    })
+    console.log("New Animal: ", animal)
+    broadcast({event: 'created', payload: {animal}});
+}, 5000);
+
+app.use(router.routes());
+app.use(router.allowedMethods());
+
+server.listen(3000);
 
 
 // const validateAnimal = (animal) => {
@@ -168,22 +218,3 @@ router.get('/animals/:id', async (ctx) => {
 // });
 
 
-/** FOR WEBSOCKET **/
-setInterval(() => {
-    const animal = new Animal({
-        id: 5,
-        name: "NEW",
-        species: "SPECIES",
-        birthdate: formatDate(Date.now()),
-        isWild: true,
-        weight: 20
-    })
-    console.log("New Animal: ", animal)
-    animals.push(animal);
-    broadcast({event: 'created', payload: {animal}});
-}, 5000);
-
-app.use(router.routes());
-app.use(router.allowedMethods());
-
-server.listen(3000);
